@@ -125,16 +125,16 @@ class Video(object):
 		/[DirName]/		
 	num         拉取的总数
 	pattern     eListBoth, ListDirOnly, eListFileOnly 默认eListBoth
-	order       默认正序(=0), 填1为反序
-	offset      透传字段,用于翻页,前端不需理解,需要往前/往后翻页则透传回来
+	order       默认正序(=0), 填1为反序，需要翻页时，正序时0代表下一页，1代表上一页。反续时1代表下一页，0代表上一页。
+	context      透传字段,用于翻页,前端不需理解,需要往前/往后翻页则透传回来
 	"""
-	def list(self, bucket, path, num=20, pattern='eListBoth', order=0, offset='') :
+	def list(self, bucket, path, num=20, pattern='eListBoth', order=0, context='') :
 		bucket = string.strip(bucket, '/')
 		path = urllib.quote(string.strip(path, '/'), '~/')
 		if path != '':
 			path += '/'
 
-		return self.__list(bucket, path, num, pattern, order, offset)
+		return self.__list(bucket, path, num, pattern, order, context)
 
 	"""
 	前缀搜索
@@ -145,10 +145,10 @@ class Video(object):
 	prefix 	    列出含prefix此前缀的所有文件
 	num         拉取的总数
 	pattern     eListBoth, ListDirOnly, eListFileOnly 默认eListBoth
-	order       默认正序(=0), 填1为反序
-	offset      透传字段,用于翻页,前端不需理解,需要往前/往后翻页则透传回来
+	order       默认正序(=0), 填1为反序，需要翻页时，正序时0代表下一页，1代表上一页。反续时1代表下一页，0代表上一页。
+	context      透传字段,用于翻页,前端不需理解,需要往前/往后翻页则透传回来
 	"""
-	def prefixSearch(self, bucket, path, prefix='', num=20, pattern='eListBoth', order=0, offset='') :
+	def prefixSearch(self, bucket, path, prefix='', num=20, pattern='eListBoth', order=0, context='') :
 		bucket = string.strip(bucket, '/')
 		path = urllib.quote(string.strip(path, '/'), '~/')
 		if path == '':
@@ -156,9 +156,9 @@ class Video(object):
 		else :
 			path += '/' + prefix
 
-		return self.__list(bucket, path, num, pattern, order, offset)
+		return self.__list(bucket, path, num, pattern, order, context)
 
-	def __list(self, bucket, path, num=20, pattern='eListBoth', order=0, offset='') :
+	def __list(self, bucket, path, num=20, pattern='eListBoth', order=0, context='') :
 		expired = int(time.time()) + self.EXPIRED_SECONDS
 		url = self.generate_res_url(bucket, path)
 		auth = Auth(self._secret_id, self._secret_key)
@@ -169,7 +169,7 @@ class Video(object):
 			'User-Agent':conf.get_ua(),
 		}
 
-		data = {'op':'list','num':num,'pattern':pattern,'order':order,'offset':offset}
+		data = {'op':'list','num':num,'pattern':pattern,'order':order,'context':context}
 
 		return self.sendRequest('GET', url, headers=headers, params=data, timeout=(self.connect_timeout, self.read_timeout))
         
