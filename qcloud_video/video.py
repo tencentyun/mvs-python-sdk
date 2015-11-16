@@ -12,6 +12,7 @@ from qcloud_video import conf
 from .auth import Auth
 
 class Video(object):
+	httpSession = requests.session()
 
 	def __init__(self, appid=conf.APPID, secret_id=conf.SECRET_ID, secret_key=conf.SECRET_KEY, timeout=30):
 		self.VIDEO_FILE_NOT_EXISTS = -1
@@ -33,9 +34,9 @@ class Video(object):
 		r = {}
 		try:
 			if method.upper() == 'POST' :
-				r = requests.post(url, **args)
+				r = self.httpSession.post(url, **args)
 			else :
-				r = requests.get(url, **args)
+				r = self.httpSession.get(url, **args)
 			ret = r.json()
 		except Exception as e:
 			if r:
