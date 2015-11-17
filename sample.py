@@ -6,6 +6,7 @@ import qcloud_video
 appid = 'xxxx'
 secret_id = 'xxxxx'
 secret_key = 'xxxxxx'
+cover_url = 'http://ceshi-1000027.file.myqcloud.com/1.jpg';
 
 # 上传
 video = qcloud_video.Video(appid,secret_id,secret_key)
@@ -38,5 +39,5 @@ obj = video.deleteFile('bucket01', 'abc/a.mp4')
 print obj, obj['message']
 print '----------------------------------------------------------------------'
 
-obj = video.upload_slice('test.mp4', 'bucket01', 'abc/a.mp4', 'title', 'desc', '', 2*1024*1024)
+obj = video.upload_slice('test.mp4', 'bucket01', 'abc/a.mp4', cover_url, 'title', 'desc', '', 2*1024*1024)
 print obj, obj['message']

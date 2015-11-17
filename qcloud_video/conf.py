@@ -2,7 +2,7 @@
 import pkg_resources
 import platform
 
-API_VIDEO_END_POINT = 'http://web.file.myqcloud.com/files/v1/'
+API_VIDEO_END_POINT = 'http://web.video.myqcloud.com/files/v1/'
 APPID = '您的APPID'
 SECRET_ID = '您的SECRETID'
 SECRET_KEY = '您的SECRETKEY'
@@ -17,7 +17,8 @@ config = {
 eMaskBizAttr = 1 << 0
 eMaskTitle = 1 << 1
 eMaskDesc = 1 << 2
-eMaskAll = eMaskBizAttr | eMaskTitle | eMaskDesc
+eMaskVideoCover = 1 << 3
+eMaskAll = eMaskBizAttr | eMaskTitle | eMaskDesc | eMaskVideoCover
 
 def get_app_info():
 	return config
@@ -31,7 +32,10 @@ def set_app_info(appid=None,secret_id=None,secret_key=None):
         config['secret_key'] = secret_key
 
 def get_ua():
-    version = pkg_resources.require("qcloud_video")[0].version
+    try:
+        version = pkg_resources.require("qcloud_video")[0].version
+    except Exception as e:
+        version = ''
     return 'Qcloud-Video-PYTHON/'+version+' ('+platform.platform()+')';
 
 

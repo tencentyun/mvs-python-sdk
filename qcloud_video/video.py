@@ -12,7 +12,6 @@ from qcloud_video import conf
 from .auth import Auth
 
 class Video(object):
-	httpSession = requests.session()
 
 	def __init__(self, appid=conf.APPID, secret_id=conf.SECRET_ID, secret_key=conf.SECRET_KEY, timeout=30):
 		self.VIDEO_FILE_NOT_EXISTS = -1
@@ -30,13 +29,23 @@ class Video(object):
 		app_info = conf.get_app_info()
 		return app_info['end_point'] + str(app_info['appid']) + '/' + bucket + '/' + dstpath
 
+	def sha1file(self, filename, block=4*1024*1024):
+		sha1 = hashlib.sha1()
+		with open(filename, 'rb') as f:
+			while True:
+				data = f.read(block)
+				if not data:
+					break
+				sha1.update(data)
+		return sha1.hexdigest()
+
 	def sendRequest(self, method, url, **args):
 		r = {}
 		try:
 			if method.upper() == 'POST' :
-				r = self.httpSession.post(url, **args)
+				r = requests.post(url, **args)
 			else :
-				r = self.httpSession.get(url, **args)
+				r = requests.get(url, **args)
 			ret = r.json()
 		except Exception as e:
 			if r:
@@ -62,7 +71,7 @@ class Video(object):
 	dstpath:          上传的视频存储路径
 	bizattr:          视频的属性
 	"""
-	def upload(self, filepath, bucket, dstpath, title=None, desc=None, bizattr=None, magiccontext=None):
+	def upload(self, filepath, bucket, dstpath, videoCover=None, title=None, desc=None, bizattr=None, magiccontext=None):
 		filepath = os.path.abspath(filepath);
 		if not os.path.exists(filepath):
 			return {'httpcode':0, 'code':self.VIDEO_FILE_NOT_EXISTS, 'message':'file not exists', 'data':{}}
@@ -71,18 +80,17 @@ class Video(object):
 		dstpath = urllib.quote(string.strip(dstpath, '/'), '~/')
 		url = self.generate_res_url(bucket, dstpath)
 		auth = Auth(self._secret_id, self._secret_key)
+		sha1 = self.sha1file(filepath);
 		sign = auth.sign_more(bucket, expired)
-		sha1 = hashlib.sha1();
-		fp = open(filepath, 'rb')
-		sha1.update(fp.read())
-		fp.close()
 
 		headers = {
 			'Authorization':sign,
 			'User-Agent':conf.get_ua(),
 		}
 
-		files = {'op':'upload','filecontent':open(filepath, 'rb'),'sha':sha1.hexdigest()}
+		files = {'op':'upload','filecontent':open(filepath, 'rb'),'sha':sha1}
+		if videoCover != None:
+			files['video_cover'] = videoCover
 		if title != None:
 			files['video_title'] = title
 		if desc != None:
@@ -183,7 +191,7 @@ class Video(object):
 	def updateFolder(self, bucket, path, bizattr=None):
 		bucket = string.strip(bucket, '/')
 		path = urllib.quote(string.strip(path, '/') + '/', '~/')
-		return self.__update(bucket, path, None, None, bizattr, None)
+		return self.__update(bucket, path, None, None, None, bizattr, None)
 		
 	"""
 	视频信息 update
@@ -191,10 +199,10 @@ class Video(object):
 	path        视频路径 如果结尾有'/'会被自动删除
 	bizattr     视频属性
 	"""
-	def updateFile(self, bucket, path, title=None, desc=None, bizattr=None):
+	def updateFile(self, bucket, path, videoCover=None, title=None, desc=None, bizattr=None):
 		bucket = string.strip(bucket, '/')
 		path = urllib.quote(string.strip(path, '/'), '~/')
-		if title != None and desc != None and bizattr != None:
+		if title != None and desc != None and bizattr != None and videoCover != None:
 			flag = conf.eMaskAll
 		else:
 			flag = 0
@@ -204,7 +212,9 @@ class Video(object):
 				flag |= conf.eMaskDesc
 			if bizattr != None:
 				flag |= conf.eMaskBizAttr
-		return self.__update(bucket, path, title, desc, bizattr, flag)
+			if videoCover != None:
+				flag |= conf.eMaskVideoCover
+		return self.__update(bucket, path, videoCover, title, desc, bizattr, flag)
 
 	"""
 	目录/视频信息 update
@@ -212,7 +222,7 @@ class Video(object):
 	path        目录/视频路径，目录必须以'/'结尾，视频文件不能以'/'结尾
 	bizattr     目录/视频属性
 	"""
-	def __update(self, bucket, path, title, desc, bizattr, flag):
+	def __update(self, bucket, path, videoCover, title, desc, bizattr, flag):
 		expired = int(time.time()) + self.EXPIRED_SECONDS
 		url = self.generate_res_url(bucket, path)
 		auth = Auth(self._secret_id, self._secret_key)
@@ -225,6 +235,8 @@ class Video(object):
 		}
 
 		data = {'op':'update'}
+		if videoCover != None:
+			data['video_cover'] = videoCover
 		if bizattr != None:
 			data['biz_attr'] = bizattr
 		if title != None:
@@ -331,11 +343,11 @@ class Video(object):
 	分片上传视频
 	建议较大视频采用分片上传，参数和返回值同upload函数
 	"""
-	def upload_slice(self, filepath, bucket, dstpath, title=None, desc=None, bizattr=None, slice_size=0, session='', magiccontext=None):
+	def upload_slice(self, filepath, bucket, dstpath, videoCover=None, title=None, desc=None, bizattr=None, slice_size=0, session='', magiccontext=None):
 		filepath = os.path.abspath(filepath);
 		bucket = string.strip(bucket, '/')
 		dstpath = urllib.quote(string.strip(dstpath, '/'), '~/')
-		rsp = self.upload_prepare(filepath,bucket,dstpath,title,desc,bizattr,slice_size,session,magiccontext)
+		rsp = self.upload_prepare(filepath,bucket,dstpath,videoCover,title,desc,bizattr,slice_size,session,magiccontext)
 		if rsp['httpcode'] != 200 or rsp['code'] != 0:  #上传错误
 			return rsp
 		if rsp.has_key('data'):
@@ -370,25 +382,25 @@ class Video(object):
 		return  ret
 
 	#分片上传,控制包/断点续传
-	def upload_prepare(self,filepath,bucket,dstpath,title,desc,bizattr,slice_size,session,magiccontext):
+	def upload_prepare(self,filepath,bucket,dstpath,videoCover,title,desc,bizattr,slice_size,session,magiccontext):
 		if not os.path.exists(filepath):
 			return {'httpcode':0, 'code':self.VIDEO_FILE_NOT_EXISTS, 'message':'file not exists', 'data':{}}
 
 		url = self.generate_res_url(bucket, dstpath)
 		expired = int(time.time()) + self.EXPIRED_SECONDS
 		auth = Auth(self._secret_id, self._secret_key)
-		sign = auth.sign_more(bucket, expired)
 		size = os.path.getsize(filepath)
-		sha1 = hashlib.sha1();
-		fp = open(filepath, 'rb')
-		sha1.update(fp.read())
+		sha1 = self.sha1file(filepath);
+		sign = auth.sign_more(bucket, expired)
 
 		headers = {
 			'Authorization':sign,
 			'User-Agent':conf.get_ua(),
 		}
 
-		files = {'op': ('upload_slice'),'sha':sha1.hexdigest(),'filesize': str(size),'session':session}
+		files = {'op': ('upload_slice'),'sha':sha1,'filesize': str(size)}
+		if videoCover != None:
+			files['video_cover'] = videoCover
 		if title != None:
 			files['video_title'] = title
 		if desc != None:
@@ -410,11 +422,11 @@ class Video(object):
 		url = self.generate_res_url(bucket,dstpath)
 		expired = int(time.time()) + self.EXPIRED_SECONDS
 		auth = Auth(self._secret_id, self._secret_key)
-		sign = auth.sign_more(bucket, expired)
 
 		sha1 = hashlib.sha1();
 		sha1.update(data)
 
+		sign = auth.sign_more(bucket, expired)
 		headers = {
 			'Authorization':sign,
 			'User-Agent':conf.get_ua(),
